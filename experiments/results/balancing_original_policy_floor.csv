@@ -1,0 +1,5 @@
+log,run,duration,lin MAE,ang MAE,pitch rate MAE,|acc y|,|wheel vel|,|action|,|wheel acc|
+balancing_original_policy_floor,run 1,10.130012,0.019530,0.133040,0.302589,0.827907,0.958664,0.085737,36.593743
+balancing_original_policy_floor,run 2,9.550000,0.016687,0.091933,0.210728,0.651307,0.976347,0.078715,25.819243
+balancing_original_policy_floor,run 3,9.800000,0.019768,0.109850,0.300125,0.827006,1.034695,0.088191,35.941686
+balancing_original_policy_floor,average,9.826671,0.018661,0.111608,0.271147,0.768740,0.989902,0.084214,32.784891

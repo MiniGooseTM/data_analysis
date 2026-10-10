@@ -1,0 +1,5 @@
+log,run,duration,lin MAE,ang MAE,pitch rate MAE,|acc y|,|wheel vel|,|action|,|wheel acc|
+balancing_no_randomization_floor,run 1,10.049982,0.042207,0.191468,0.761527,1.344731,2.368692,0.175637,77.636685
+balancing_no_randomization_floor,run 2,10.469994,0.045925,0.195355,0.767139,1.348394,2.363809,0.177047,78.276644
+balancing_no_randomization_floor,run 3,10.860000,0.044098,0.140451,0.859268,1.343674,2.577227,0.188151,81.929993
+balancing_no_randomization_floor,average,10.459992,0.044077,0.175758,0.795978,1.345600,2.436576,0.180279,79.281107

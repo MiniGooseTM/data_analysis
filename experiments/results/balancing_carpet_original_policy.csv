@@ -1,0 +1,5 @@
+log,run,duration,lin MAE,ang MAE,pitch rate MAE,|acc y|,|wheel vel|,|action|,|wheel acc|
+balancing_carpet_original_policy,run 1,9.610000,0.023115,0.120503,0.337866,1.025557,1.159115,0.096528,41.358825
+balancing_carpet_original_policy,run 2,10.870012,0.016458,0.106847,0.260677,0.779531,0.977212,0.082862,32.152823
+balancing_carpet_original_policy,run 3,9.959990,0.021391,0.095352,0.215056,0.658913,0.954627,0.078894,26.032110
+balancing_carpet_original_policy,average,10.146667,0.020321,0.107568,0.271200,0.821334,1.030318,0.086095,33.181252
