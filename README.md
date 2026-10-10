@@ -49,3 +49,12 @@ uv run data_analysis/compare_log.py LOG.csv --run 4 --stage -1 --seed 3
 ```
 
 It takes the same options as `simulate_log.py`.
+
+## `evaluate_runs.py`: evaluation metrics per run
+
+For robot state logs with accelerometer columns (`acc_x,acc_y,acc_z`, e.g. `experiments/*.csv`). Splits the log into runs at `time_s == 0` (3 expected, `--runs` to change), cuts `--trim` seconds (default 0.5) from each run's start and end, and prints a table with one row per run plus the average: velocity tracking MAE (linear from the integrated, gravity-compensated forward acceleration, high-pass filtered at `--highpass` Hz against drift; angular from the yaw rate), pitch rate MAE, and the mean absolute wheel velocity, action and wheel acceleration over both wheels.
+
+```bash
+uv run data_analysis/evaluate_runs.py LOG.csv [LOG.csv ...]
+uv run data_analysis/evaluate_runs.py LOG.csv --csv metrics.csv   # also save the tables
+```
