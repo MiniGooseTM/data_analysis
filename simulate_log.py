@@ -22,6 +22,10 @@ The ground is flat unless ``--slope`` is given; ``--stage`` selects what else th
 simulation randomizes (default: a clean simulation, no noise, latency or randomized
 physics; e.g. ``--stage -1`` for the last training stage with all of them).
 
+``--video`` also renders each simulated run with MuJoCo's tracking camera to an MP4
+(``<log>_run<N>_sim.mp4``, next to the CSV or into ``--out``). Rendering needs OpenGL: a
+display, or ``MUJOCO_GL=egl`` (or ``osmesa``) on a headless machine.
+
 Usage:
     uv run data_analysis/simulate_log.py LOG.csv                        # show windows
     uv run data_analysis/simulate_log.py LOG.csv --save                 # PNG next to the CSV
@@ -29,12 +33,15 @@ Usage:
     uv run data_analysis/simulate_log.py LOG.csv --run 2                # only the 2nd run
     uv run data_analysis/simulate_log.py LOG.csv --model ../software_stack/models/runs/<run>
     uv run data_analysis/simulate_log.py LOG.csv --stage -1 --seed 3    # noisy, randomized
+    uv run data_analysis/simulate_log.py LOG.csv --run 2 --save --video # PNG and MP4
 """
 
 import argparse
 import sys
+import warnings
 from pathlib import Path
 
+import imageio
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -52,6 +59,7 @@ from self_balancing_robot.envs.balance_env import (
     axis_angle_quat,
     quat_mul,
 )
+from self_balancing_robot.render import render_frames
 
 DEFAULT_MODEL = Path(__file__).resolve().parents[1] / "software_stack/models/policy.bin"
 DEFAULT_STAGE = "commands 0.3 m/s"
@@ -104,14 +112,19 @@ class LogReplay:
                 "frame": observation[:ACTOR_FRAME_SIZE],
                 "action": action,
                 "terminated": state.info["terminated"],
+                "qpos": state.data.qpos,
+                "mocap_quat": state.data.mocap_quat,
             }
             return state, record
 
         return jax.lax.scan(body, state, next_commands)
 
-    def run(self, commands: np.ndarray, start_pitch: float, seed: int) -> tuple[pd.DataFrame, bool]:
+    def run(
+        self, commands: np.ndarray, start_pitch: float, seed: int
+    ) -> tuple[pd.DataFrame, bool, dict[str, np.ndarray]]:
         """Simulate one step per row of `commands` ([v m/s, omega rad/s]); returns the robot-log
-        columns per step and whether the robot fell (the frame ends with the falling step)."""
+        columns per step, whether the robot fell (the frame ends with the falling step) and the
+        simulation state after each step (``qpos``, ``mocap_quat``) for rendering."""
         steps = len(commands)
         padded = np.concatenate([commands[1:], np.repeat(commands[-1:], CHUNK_STEPS, axis=0)])
         state = self._start(
@@ -133,7 +146,8 @@ class LogReplay:
         df["action_right"] = record["action"][:length, 1]
         df.insert(0, "step", np.arange(length))
         df.insert(1, "t", df["step"] * self.env.dt)
-        return df, fell
+        states = {key: record[key][:length] for key in ("qpos", "mocap_quat")}
+        return df, fell, states
 
 
 def read_robot_log(path: Path) -> pd.DataFrame:
@@ -152,20 +166,36 @@ def logged_commands(run: pd.DataFrame) -> np.ndarray:
 
 
 def simulated_runs(path: Path, replay: LogReplay, args):
-    """(run number, run count, logged run, simulated run, fell) for every selected run."""
+    """(run number, run count, logged run, simulated run, fell, simulation states) for every
+    selected run."""
     runs = split_runs(read_robot_log(path))
     for i, run in enumerate(runs, start=1):
         if args.run is not None and i != args.run:
             continue
         commands = logged_commands(run)
-        sim, fell = replay.run(commands, float(run["pitch"].iloc[0]), args.seed)
+        sim, fell, states = replay.run(commands, float(run["pitch"].iloc[0]), args.seed)
         print(f"{path.name} run {i}: simulated {len(sim)}/{len(commands)} steps"
               + (", fell" if fell else ""))
-        yield i, len(runs), run, sim, fell
+        yield i, len(runs), run, sim, fell, states
+
+
+def save_video(replay: LogReplay, states: dict[str, np.ndarray], out: Path) -> None:
+    """Render the simulation states with the tracking camera to an MP4 in real time."""
+    env = replay.env
+    frames = render_frames(
+        env.mj_model, env.environment_config, states["qpos"], states["mocap_quat"]
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    # imageio starts ffmpeg as a child process, which execs straight away: safe despite JAX.
+    warnings.filterwarnings("ignore", message="os.fork", category=RuntimeWarning)
+    imageio.mimsave(out, frames, fps=round(1 / env.dt))
+    print(out)
 
 
 def simulated_figures(path: Path, replay: LogReplay, args, label: str):
-    for i, count, run, sim, fell in simulated_runs(path, replay, args):
+    for i, count, run, sim, fell, states in simulated_runs(path, replay, args):
+        if args.video:
+            save_video(replay, states, (args.out or path.parent) / f"{path.stem}_run{i}_sim.mp4")
         duration = sim["t"].iloc[-1]
         title = (
             f"{path.name} - run {i}/{count} simulated ({label}): "
@@ -213,6 +243,11 @@ def main() -> int:
     parser.add_argument("--save", action="store_true", help="write PNGs instead of showing windows")
     parser.add_argument("--out", type=Path, help="directory for the PNGs (default: next to the CSV)")
     parser.add_argument("--run", type=int, help="plot only this run (1-based)")
+    parser.add_argument(
+        "--video", action="store_true",
+        help="also render each simulated run to <log>_run<N>_sim.mp4 (next to the CSV or in "
+        "--out; headless: MUJOCO_GL=egl)",
+    )
     args = parser.parse_args()
 
     replay, label = make_replay(args, parser)

@@ -31,7 +31,7 @@ from simulate_log import add_simulation_arguments, make_replay, simulated_runs
 
 
 def comparison_figures(path: Path, replay, args, label: str):
-    for i, count, run, sim, fell in simulated_runs(path, replay, args):
+    for i, count, run, sim, fell, _ in simulated_runs(path, replay, args):
         robot, missing = prepare_run(run)
         title = (
             f"{path.name} - run {i}/{count}: robot {robot['t'].iloc[-1]:.1f} s"
