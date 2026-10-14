@@ -1,5 +1,0 @@
-log,runs,duration,lin MAE,ang MAE,pitch rate MAE,|acc y|,|wheel vel|,|action|,|wheel acc|
-balancing_carpet_no_randomization,3,10.309997,0.028651,0.607505,0.475015,1.407439,1.537551,0.144390,67.076217
-balancing_carpet_original_policy,3,10.146667,0.020321,0.107567,0.271200,0.821334,1.030318,0.086095,33.181253
-balancing_no_randomization_floor,3,10.459992,0.044077,0.175758,0.795978,1.345600,2.436576,0.180278,79.281107
-balancing_original_policy_floor,3,9.826671,0.018662,0.111608,0.271147,0.768740,0.989902,0.084214,32.784891
