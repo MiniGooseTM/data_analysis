@@ -5,37 +5,6 @@
 # [tool.uv.sources]
 # self-balancing-robot = { path = "../software_stack", editable = true }
 # ///
-"""Full quantitative evaluation: every policy's robot runs and their replays in simulation.
-
-A config (default ``experiments/evaluation.toml``) names each policy's ``policy.bin`` and,
-per experiment (balancing, forward, spin, slope), the robot log it was run in. For every
-selected run of every log the metrics of ``evaluate_runs.py`` are computed for the robot,
-and the run is replayed in simulation as by ``simulate_log.py`` (same policy, same command
-sequence, same start pitch) and scored the same way. The simulated velocity is the true
-one, the robot's is wheel odometry.
-
-The config can name several simulations, each a curriculum stage and the seeds to replay
-with, e.g. ``clean`` (stage "balance": no noise, latency or randomized physics) and ``noisy``
-(stage "commands 0.4 m/s": the sensor noise and latency the policies trained with). Each one
-is a source next to ``real`` in the results.
-
-Writes to ``experiments/results/`` (or ``--out``):
-
-- ``evaluation_runs.csv``: one row per policy, experiment, source (real or a simulation),
-  run and seed
-- ``evaluation_summary.csv``: per policy, experiment and metric the mean and standard
-  deviation over the runs of every source (simulations averaged over their seeds first), and
-  each simulation's minus real gap (paired by run, as each replay follows that run's
-  commands)
-- ``evaluation_summary.md``: those as Markdown tables, one per experiment
-
-Usage:
-    uv run data_analysis/run_evaluation.py
-    uv run data_analysis/run_evaluation.py other.toml --out results/
-    uv run data_analysis/run_evaluation.py --policy default --experiment forward spin
-    uv run data_analysis/run_evaluation.py --no-sim                    # robot metrics only
-"""
-
 import argparse
 import sys
 import tomllib

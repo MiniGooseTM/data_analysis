@@ -5,20 +5,6 @@
 # [tool.uv.sources]
 # self-balancing-robot = { path = "../software_stack", editable = true }
 # ///
-"""Overlay a robot state log and its replay in simulation, run by run.
-
-Each run of a robot state log (``goose_state_*.csv``) is plotted as by ``plot_logs.py``
-(solid lines) and simulated as by ``simulate_log.py``, whose result is drawn dashed on
-the same panels in the same colors. The simulated lines end early if the simulated robot
-falls (the title says so).
-
-Usage:
-    uv run data_analysis/compare_log.py LOG.csv                         # show windows
-    uv run data_analysis/compare_log.py LOG.csv --save                  # PNG next to the CSV
-    uv run data_analysis/compare_log.py LOG.csv --save --out plots/     # PNG into plots/
-    uv run data_analysis/compare_log.py LOG.csv --run 2                 # only the 2nd run
-    uv run data_analysis/compare_log.py LOG.csv --stage -1 --seed 3     # noisy, randomized
-"""
 
 import argparse
 import sys

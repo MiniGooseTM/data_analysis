@@ -5,39 +5,6 @@
 # [tool.uv.sources]
 # self-balancing-robot = { path = "../software_stack", editable = true }
 # ///
-"""Replay the commands of a robot state log in simulation and plot the simulated run.
-
-For every run in a robot state log (``goose_state_*.csv``, see ``plot_logs.py``) the policy
-is run in the MuJoCo environment of ``software_stack`` with the same ``v_cmd`` /
-``omega_cmd`` sequence, step for step (missing log rows keep the previous command). The
-simulated run starts at the run's first logged pitch, standing still, with the history
-filled with copies of the first frame like the firmware does on Start. Each step records
-the frame the policy saw and its action, i.e. the same columns the robot logs, and the
-result is drawn with the panels of ``plot_logs.py``, so the two figures compare 1:1.
-
-The simulation ends at the first fall (pitch or roll past 0.6 rad, spinning, or the
-chassis touching the ground), where the robot firmware cuts the motors as well.
-
-The ground is flat unless ``--slope`` is given; ``--stage`` selects what else the
-simulation randomizes (default ``balance``: a clean simulation, no noise, latency or
-randomized physics; the ``commands ...`` stages add sensor noise and latency, e.g.
-``--stage "commands 0.4 m/s"`` the full amount, and ``--stage -1``, the last training stage,
-also randomized physics, pushes and slopes). The logged commands are replayed in full in
-any stage: a stage's command range only limits the commands it draws itself.
-
-``--video`` also renders each simulated run with MuJoCo's tracking camera to an MP4
-(``<log>_run<N>_sim.mp4``, next to the CSV or into ``--out``). Rendering needs OpenGL: a
-display, or ``MUJOCO_GL=egl`` (or ``osmesa``) on a headless machine.
-
-Usage:
-    uv run data_analysis/simulate_log.py LOG.csv                        # show windows
-    uv run data_analysis/simulate_log.py LOG.csv --save                 # PNG next to the CSV
-    uv run data_analysis/simulate_log.py LOG.csv --save --out plots/    # PNG into plots/
-    uv run data_analysis/simulate_log.py LOG.csv --run 2                # only the 2nd run
-    uv run data_analysis/simulate_log.py LOG.csv --model ../software_stack/models/runs/<run>
-    uv run data_analysis/simulate_log.py LOG.csv --stage -1 --seed 3    # noisy, randomized
-    uv run data_analysis/simulate_log.py LOG.csv --run 2 --save --video # PNG and MP4
-"""
 
 import argparse
 import sys

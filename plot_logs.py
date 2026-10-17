@@ -2,23 +2,6 @@
 # requires-python = ">=3.11"
 # dependencies = ["matplotlib>=3.7", "pandas>=2"]
 # ///
-"""Plot CSV logs downloaded from the ESP32 web pages.
-
-Two formats are recognised by their header:
-
-- robot state log (``goose_state_*.csv``, "Download" in the robot page's state log):
-  ``step,time_s,<OBS_FRAME_FIELDS>,action_left,action_right``, one row per control step.
-  A file can hold several runs back to back; ``step`` restarts at 0 for each. Each run
-  gets its own figure.
-- PID test log (``pid_*.csv``, "Download CSV" in the pid_test page):
-  ``t_ms,tilt_deg,setpoint_deg,rate_dps,p,i,d,u``.
-
-Usage:
-    uv run data_analysis/plot_logs.py LOG.csv [LOG.csv ...]           # show windows
-    uv run data_analysis/plot_logs.py LOG.csv --save                  # PNG next to the CSV
-    uv run data_analysis/plot_logs.py LOG.csv --save --out plots/     # PNG into plots/
-    uv run data_analysis/plot_logs.py LOG.csv --run 2                 # only the 2nd run
-"""
 
 import argparse
 import sys

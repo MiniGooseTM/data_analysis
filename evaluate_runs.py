@@ -2,43 +2,6 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy", "pandas>=2", "tabulate"]
 # ///
-"""Quantitative metrics for each run of a robot state log, per experiment.
-
-A log (e.g. ``experiments/runs/goose_exp_default_forward_3runs.csv``) holds several runs
-back to back; ``step`` restarts at 0 for each. The experiment (``balancing``, ``forward``,
-``spin`` or ``slope``) is taken from the file name unless ``--experiment`` is given; it
-selects which metrics are reported:
-
-- all: duration, fell, pitch MAE / RMSE / max (from upright), pitch rate MAE / RMSE, mean
-  |action|, action saturation (share of |a| >= 0.98), action smoothness (mean
-  |a - previous a|), mean |wheel acceleration|
-- balancing: lin / ang MAE and RMSE (the command is 0), position drift, heading drift
-- forward: lin MAE / RMSE / steady-state error / rise time / overshoot, ang MAE / RMSE,
-  distance
-- spin: ang MAE / RMSE / steady-state error / rise time / overshoot, lin MAE / RMSE,
-  position drift
-- slope: lin / ang MAE, RMSE and steady-state errors, distance
-
-Every metric is one number per run; the tables give each run and the mean and standard
-deviation across runs.
-
-The forward velocity on the robot is wheel odometry, ``r (mean wheel speed - pitch rate)``,
-so it misses wheel slip; a simulated run (from ``simulate_log.py``) carries its true velocity
-in ``v_true``, which is used instead. Commands are scaled to m/s and rad/s with the limits
-of the policy that ran (``--policy`` reads them from its policy.bin).
-
-Each run is trimmed by ``--trim`` seconds at both ends (the robot settling after start and
-being stopped). Steady-state errors are taken over the stretches with a constant, nonzero
-command, without their first ``--settle`` seconds; rise time (to 90 %) and overshoot are
-averaged over the command steps. A run fell if |pitch| reached 0.5 rad in its last 0.2 s.
-
-Usage:
-    uv run data_analysis/evaluate_runs.py LOG.csv [LOG.csv ...]
-    uv run data_analysis/evaluate_runs.py LOG.csv --policy software_stack/models_share/default/policy_baseline.bin
-    uv run data_analysis/evaluate_runs.py LOG.csv --experiment spin --runs 1,2,5
-    uv run data_analysis/evaluate_runs.py LOG.csv --csv metrics.csv     # also save the table
-"""
-
 import argparse
 import re
 import struct
