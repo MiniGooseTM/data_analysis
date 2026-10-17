@@ -38,14 +38,6 @@ ROBOT_PANELS = [
     ("Motor action", "[-1, 1]", [("action_left", "left"), ("action_right", "right")], 1.0),
 ]
 
-PID_PANELS = [
-    ("Tilt", "deg", [("tilt_deg", "tilt"), ("setpoint_deg", "setpoint")], 1.0),
-    ("Tilt rate", "deg/s", [("rate_dps", "rate")], 1.0),
-    ("PID terms", "", [("p", "P"), ("i", "I"), ("d", "D")], 1.0),
-    ("Output", "u", [("u", "u")], 1.0),
-]
-
-
 def split_runs(df: pd.DataFrame) -> list[pd.DataFrame]:
     """Robot log: one frame per run, cut where `step` goes back down."""
     run_id = (df["step"].diff() < 0).cumsum()
@@ -130,21 +122,13 @@ def robot_figures(df: pd.DataFrame, name: str, only_run: int | None):
         yield f"run{i}", plot_panels(run, ROBOT_PANELS, title, "time since run start [s]")
 
 
-def pid_figures(df: pd.DataFrame, name: str):
-    df = df.assign(t=(df["t_ms"] - df["t_ms"].iloc[0]) / 1000.0)
-    title = f"{name}: {df['t'].iloc[-1]:.1f} s, {len(df)} samples"
-    yield "", plot_panels(df, PID_PANELS, title, "time since recording start [s]")
-
-
 def figures_for(path: Path, only_run: int | None):
     df = pd.read_csv(path)
-    if {"step", "time_s"} <= set(df.columns):
-        # A browser that reconnected mid-log may have appended a second header line
-        df = df[pd.to_numeric(df["step"], errors="coerce").notna()].apply(pd.to_numeric)
-        return robot_figures(df, path.name, only_run)
-    if "t_ms" in df.columns:
-        return pid_figures(df, path.name)
-    raise ValueError(f"unrecognised header: {','.join(df.columns)}")
+    if not {"step", "time_s"} <= set(df.columns):
+        raise ValueError(f"not a robot state log: {','.join(df.columns)}")
+    # A browser that reconnected mid-log may have appended a second header line
+    df = df[pd.to_numeric(df["step"], errors="coerce").notna()].apply(pd.to_numeric)
+    return robot_figures(df, path.name, only_run)
 
 
 def main() -> int:
@@ -152,7 +136,7 @@ def main() -> int:
     parser.add_argument("logs", nargs="+", type=Path, help="CSV files downloaded from the robot")
     parser.add_argument("--save", action="store_true", help="write PNGs instead of showing windows")
     parser.add_argument("--out", type=Path, help="directory for the PNGs (default: next to the CSV)")
-    parser.add_argument("--run", type=int, help="robot log: plot only this run (1-based)")
+    parser.add_argument("--run", type=int, help="plot only this run (1-based)")
     args = parser.parse_args()
 
     shown = 0
@@ -166,7 +150,7 @@ def main() -> int:
             if args.save:
                 out_dir = args.out or path.parent
                 out_dir.mkdir(parents=True, exist_ok=True)
-                out = out_dir / f"{path.stem}{'_' + suffix if suffix else ''}.png"
+                out = out_dir / f"{path.stem}_{suffix}.png"
                 fig.savefig(out, dpi=150, facecolor=fig.get_facecolor())
                 plt.close(fig)
                 print(out)
