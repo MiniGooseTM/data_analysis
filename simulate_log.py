@@ -19,8 +19,11 @@ The simulation ends at the first fall (pitch or roll past 0.6 rad, spinning, or 
 chassis touching the ground), where the robot firmware cuts the motors as well.
 
 The ground is flat unless ``--slope`` is given; ``--stage`` selects what else the
-simulation randomizes (default: a clean simulation, no noise, latency or randomized
-physics; e.g. ``--stage -1`` for the last training stage with all of them).
+simulation randomizes (default ``balance``: a clean simulation, no noise, latency or
+randomized physics; the ``commands ...`` stages add sensor noise and latency, e.g.
+``--stage "commands 0.4 m/s"`` the full amount, and ``--stage -1``, the last training stage,
+also randomized physics, pushes and slopes). The logged commands are replayed in full in
+any stage: a stage's command range only limits the commands it draws itself.
 
 ``--video`` also renders each simulated run with MuJoCo's tracking camera to an MP4
 (``<log>_run<N>_sim.mp4``, next to the CSV or into ``--out``). Rendering needs OpenGL: a
@@ -48,6 +51,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from evaluate_runs import read_robot_log
 from plot_logs import ROBOT_PANELS, plot_panels, split_runs
 from self_balancing_robot.actor import Actor, forward
 from self_balancing_robot.curriculum import CURRICULUM, FULL_COMMAND
@@ -55,6 +59,8 @@ from self_balancing_robot.envs.balance_env import (
     ACTOR_FRAME_FIELDS,
     ACTOR_FRAME_SIZE,
     ACTOR_KEY,
+    CRITIC_KEY,
+    PRIVILEGED_FIELDS,
     SelfBalancingRobotEnv,
     axis_angle_quat,
     quat_mul,
@@ -62,35 +68,53 @@ from self_balancing_robot.envs.balance_env import (
 from self_balancing_robot.render import render_frames
 
 DEFAULT_MODEL = Path(__file__).resolve().parents[1] / "software_stack/models/policy.bin"
-DEFAULT_STAGE = "commands 0.3 m/s"
+DEFAULT_STAGE = "balance"
 # Steps per jitted rollout call: one compilation serves runs of any length.
 CHUNK_STEPS = 500
 
 
+FORWARD_VELOCITY = PRIVILEGED_FIELDS.index("forward_velocity")
+
+
 class LogReplay:
-    """One simulated robot, driven by the policy with a given command per step."""
+    """One simulated robot, driven by the policy with a given command per step.
+
+    The policy, the slope and the curriculum stage (noise, latency, randomized physics) are
+    arguments of the compiled functions, so `use` and `in_stage` switch them without
+    compiling again."""
 
     def __init__(self, env: SelfBalancingRobotEnv, actor: Actor, slope: float):
         self.env = env
-        self.layers = [(jnp.asarray(w), jnp.asarray(b)) for w, b in actor.layers]
-        self.slope = slope
+        self.stage = env.start_stage
         self._start = jax.jit(self._start_state)
         self._rollout = jax.jit(self._rollout_chunk)
+        self.use(actor, slope)
 
-    def _start_state(self, key, command, pitch):
+    def use(self, actor: Actor, slope: float = 0.0) -> None:
+        """Simulate `actor` on ground sloped by `slope` rad from now on."""
+        self.layers = [(jnp.asarray(w), jnp.asarray(b)) for w, b in actor.layers]
+        self.slope = slope
+
+    def in_stage(self, stage: int | str) -> str:
+        """Simulate in curriculum `stage` (name or index) from now on; returns its name."""
+        self.stage = self.env.stage_index(stage)
+        return self.env.curriculum[self.stage].name
+
+    def _start_state(self, key, command, pitch, slope, stage):
         """Episode at `command`, standing still at `pitch` (rad) on the ground."""
         env = self.env
         reset_key, observe_key = jax.random.split(key)
         persistent = {
             **env.initial_persistent(),
+            "stage": stage,
             "command_held": jnp.array(True),
             "command": command,
-            "override_slope": jnp.float32(self.slope),
+            "override_slope": slope,
         }
         state = env.reset_episode(reset_key, persistent)
         # Replace the random initial lean and velocities with the logged start. The slope's
         # axis is pinned along world x, so a lean about the axle is a pitch on it as well.
-        lean = axis_angle_quat(jnp.array([1.0, 0.0, 0.0]), pitch - jnp.float32(self.slope))
+        lean = axis_angle_quat(jnp.array([1.0, 0.0, 0.0]), pitch - slope)
         quat = quat_mul(state.data.mocap_quat[0], lean)
         base = env._base_qpos
         data = state.data.replace(
@@ -100,17 +124,20 @@ class LogReplay:
         obs, info = env._observe(data, state.info, observe_key, first=True)
         return state.replace(data=data, obs=obs, info=info)
 
-    def _rollout_chunk(self, state, next_commands):
+    def _rollout_chunk(self, layers, state, next_commands):
         """Run one step per entry of `next_commands` (the command of the following frame)."""
 
         def body(state, command):
             observation = state.obs[ACTOR_KEY]
-            action = jnp.clip(forward(self.layers, observation), -1.0, 1.0)
+            # True speed at the time of the frame, before the step
+            velocity = state.obs[CRITIC_KEY][FORWARD_VELOCITY]
+            action = jnp.clip(forward(layers, observation), -1.0, 1.0)
             # The command set now is the one the next observation (frame) carries.
             state = self.env.step(state.replace(info={**state.info, "command": command}), action)
             record = {
                 "frame": observation[:ACTOR_FRAME_SIZE],
                 "action": action,
+                "v_true": velocity,
                 "terminated": state.info["terminated"],
                 "qpos": state.data.qpos,
                 "mocap_quat": state.data.mocap_quat,
@@ -123,16 +150,20 @@ class LogReplay:
         self, commands: np.ndarray, start_pitch: float, seed: int
     ) -> tuple[pd.DataFrame, bool, dict[str, np.ndarray]]:
         """Simulate one step per row of `commands` ([v m/s, omega rad/s]); returns the robot-log
-        columns per step, whether the robot fell (the frame ends with the falling step) and the
-        simulation state after each step (``qpos``, ``mocap_quat``) for rendering."""
+        columns per step and the true forward velocity (``v_true``, m/s), whether the robot
+        fell (the frame ends with the falling step) and the simulation state after each step
+        (``qpos``, ``mocap_quat``) for rendering."""
         steps = len(commands)
         padded = np.concatenate([commands[1:], np.repeat(commands[-1:], CHUNK_STEPS, axis=0)])
         state = self._start(
-            jax.random.PRNGKey(seed), jnp.asarray(commands[0]), jnp.float32(start_pitch)
+            jax.random.PRNGKey(seed), jnp.asarray(commands[0]), jnp.float32(start_pitch),
+            jnp.float32(self.slope), jnp.int32(self.stage),
         )
         chunks = []
         for begin in range(0, steps, CHUNK_STEPS):
-            state, chunk = self._rollout(state, jnp.asarray(padded[begin : begin + CHUNK_STEPS]))
+            state, chunk = self._rollout(
+                self.layers, state, jnp.asarray(padded[begin : begin + CHUNK_STEPS])
+            )
             chunk = jax.device_get(chunk)
             chunks.append(chunk)
             if chunk["terminated"].any():
@@ -144,18 +175,11 @@ class LogReplay:
         df = pd.DataFrame(record["frame"][:length], columns=list(ACTOR_FRAME_FIELDS))
         df["action_left"] = record["action"][:length, 0]
         df["action_right"] = record["action"][:length, 1]
+        df["v_true"] = record["v_true"][:length]
         df.insert(0, "step", np.arange(length))
         df.insert(1, "t", df["step"] * self.env.dt)
         states = {key: record[key][:length] for key in ("qpos", "mocap_quat")}
         return df, fell, states
-
-
-def read_robot_log(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path)
-    if not {"step", "time_s", "v_cmd", "omega_cmd", "pitch"} <= set(df.columns):
-        raise ValueError(f"not a robot state log: {','.join(df.columns)}")
-    # A browser that reconnected mid-log may have appended a second header line
-    return df[pd.to_numeric(df["step"], errors="coerce").notna()].apply(pd.to_numeric)
 
 
 def logged_commands(run: pd.DataFrame) -> np.ndarray:

@@ -1,0 +1,50 @@
+# Quantitative evaluation: which policy ran which experiment, and the robot log of it.
+# Read by run_evaluation.py; paths are relative to this file.
+#
+# An experiment (balancing, forward, spin, slope) is either the log's path or
+# { log = "...", runs = [1, 2, 5] } to use only some of its runs (1-based, in log order).
+
+[simulation]
+# Experiments evaluated on the robot only (the simulation has no ramp to drive onto).
+skip = ["slope"]
+
+# Each [simulation.<name>] replays every robot run in a curriculum stage (by name or index),
+# once per seed, and is a source next to "real" in the results. The logged commands are
+# replayed in full in any stage. "balance" is a clean simulation; the "commands ..." stages
+# add sensor noise and latency ("commands 0.4 m/s": the full noise, up to 2 steps), -1 (the
+# last stage) also randomized physics, pushes and slopes.
+
+[simulation.clean]
+stage = "balance"
+seeds = [0]  # nothing is random
+
+[simulation.noisy]
+stage = "commands 0.4 m/s"
+seeds = [0, 1, 2, 3, 4]
+
+[evaluation]
+trim_s = 0.5    # cut from each run's start and end
+settle_s = 0.5  # left out of the steady-state error after a command change
+
+[policies.default]
+model = "../../software_stack/models_share/default/policy_baseline.bin"
+balancing = "runs/goose_exp_default_balancing_3runs.csv"
+forward = "runs/goose_exp_default_forward_3runs.csv"
+spin = "runs/goose_exp_default_spin_3runs.csv"
+# Runs 3 and 4 failed (12XX3)
+slope = { log = "runs/goose_exp_default_slope_3runs_12XX3.csv", runs = [1, 2, 5] }
+
+[policies.noRando]
+model = "../../software_stack/models_share/no_randomization/policy_no_randomization.bin"
+balancing = "runs/goose_exp_noRando_balancing_3runs.csv"
+# Run 4 failed (123X4)
+forward = { log = "runs/goose_exp_noRando_forward_4runs_123X4.csv", runs = [1, 2, 3, 5] }
+spin = "runs/goose_exp_noRando_spin_3runs.csv"
+slope = { log = "runs/goose_exp_noRando_slope_2runs.csv", runs = [1, 2] }
+
+[policies.moreRando]
+model = "../../software_stack/models_share/more_noise/policy_more_random.bin"
+balancing = "runs/goose_exp_moreRando_balancing_3runs.csv"
+forward = "runs/goose_exp_moreRando_forward_3runs.csv"
+spin = "runs/goose_exp_moreRando_spin_3runs.csv"
+slope = "runs/goose_exp_moreRando_slope_3runs_manual.csv"
