@@ -72,7 +72,7 @@ Splits a log into runs, cuts `--trim` seconds (default 0.5) from each run's star
 - `slope`: linear and angular MAE, RMSE and steady-state errors, distance
 
 The robot's forward velocity during real experiment is calculated from wheel odometry (we found this to be more precise that integrating the accelerometer).
-Steady-state errors use the stretches of constant nonzero command without their first `--settle` seconds (default 0.5). For `slope` the settle time is always 0: the command is held while the robot drives onto the ramp, so command changes don't mark its transients.
+Steady-state errors use the stretches of constant nonzero command without their first `--settle` seconds (default 0.5).
 
 ```bash
 uv run evaluate_runs.py LOG.csv [LOG.csv ...]
