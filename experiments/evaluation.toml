@@ -24,7 +24,7 @@ seeds = [0, 1, 2, 3, 4]
 
 [evaluation]
 trim_s = 0.5    # cut from each run's start and end
-settle_s = 0.5  # left out of the steady-state error after a command change
+settle_s = 0.5  # left out of the steady-state error after a command change (always 0 for slope)
 
 [policies.default]
 model = "../../software_stack/models_share/default/policy_baseline.bin"

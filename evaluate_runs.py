@@ -29,7 +29,8 @@ of the policy that ran (``--policy`` reads them from its policy.bin).
 
 Each run is trimmed by ``--trim`` seconds at both ends (the robot settling after start and
 being stopped). Steady-state errors are taken over the stretches with a constant, nonzero
-command, without their first ``--settle`` seconds; rise time (to 90 %) and overshoot are
+command, without their first ``--settle`` seconds (always 0 for slope, where the command is
+held while the robot drives onto the ramp); rise time (to 90 %) and overshoot are
 averaged over the command steps. A run fell if |pitch| reached 0.5 rad in its last 0.2 s.
 
 Usage:
@@ -59,6 +60,10 @@ FALL_PITCH = 0.5  # rad; the firmware cuts the motors at 0.6
 FALL_WINDOW_S = 0.2
 SATURATION = 0.98
 RISE_FRACTION = 0.9
+# Settle time per experiment, in place of --settle. On the slope the command is held while the
+# robot drives onto the ramp, so command changes don't mark its transients (and the manually
+# driven runs flicker between commands): every sample of a nonzero command counts.
+EXPERIMENT_SETTLE_S = {"slope": 0.0}
 
 COMMON_METRICS = [
     "duration_s", "fell", "pitch_mae_deg", "pitch_rmse_deg", "pitch_max_abs_deg",
@@ -245,6 +250,7 @@ def evaluate_run(
     tk = t[keep]
     actions = s[["action_left", "action_right"]].to_numpy()[keep]
     previous = s[["previous_action_left", "previous_action_right"]].to_numpy()[keep]
+    settle_s = EXPERIMENT_SETTLE_S.get(experiment, settle_s)
     lin = tracking(s["v"].to_numpy(), s["v_cmd"].to_numpy(), t, keep, settle_s)
     ang = tracking(s["w"].to_numpy(), s["w_cmd"].to_numpy(), t, keep, settle_s)
     distance = integral(s["v"].to_numpy()[keep], tk)
@@ -323,7 +329,7 @@ def main() -> int:
     )
     parser.add_argument("--runs", type=parse_runs, help="runs to evaluate, 1-based, e.g. 1,2,5 (default all)")
     parser.add_argument("--trim", type=float, default=0.5, help="seconds cut from each run's start and end (default 0.5)")
-    parser.add_argument("--settle", type=float, default=1.0, help="seconds after a command change left out of the steady-state error (default 1)")
+    parser.add_argument("--settle", type=float, default=1.0, help="seconds after a command change left out of the steady-state error (default 1; always 0 for slope)")
     parser.add_argument("--csv", type=Path, help="also write all tables to this CSV")
     args = parser.parse_args()
 
